@@ -1,6 +1,6 @@
 ---
 name: issues
-description: Manage a project's issues/ folder of NNNN.md markdown files — file new bugs, update status, attach screenshots, find the next number, and keep issues/Issues.md in sync. Use this skill whenever the user (or a subagent doing work on their behalf) describes a bug, regression, "broken" thing, or asks to "log this", "track this", "write this up", "make a ticket", "add to issues" — even if they don't explicitly say the word "issue". Also use it when updating status, attaching a screenshot to an existing issue, or summarizing what's open / in-progress for a project that has (or should have) an issues/ folder.
+description: Manage a project's issues/ folder of NNNN.md markdown files — file new bugs, update status, attach screenshots, find the next number, keep issues/Issues.md in sync, and run the standard claim→fix→build→commit→resolve workflow when working through the queue. Use this skill whenever the user (or a subagent doing work on their behalf) describes a bug, regression, "broken" thing, or asks to "log this", "track this", "write this up", "make a ticket", "add to issues" — even if they don't explicitly say the word "issue". Also use it when the user asks to "work on the next open issue", "pick up the next bug", "fix issue NNNN", "work through the open issues", or to update status, attach a screenshot to an existing issue, or summarize what's open / in-progress for a project that has (or should have) an issues/ folder.
 ---
 
 # Issues — markdown-based bug tracking
@@ -91,7 +91,7 @@ The `resolved` → `closed` distinction is deliberate: `resolved` says "work lan
 
 1. Edit `issues/NNNN.md` in place. The Mac app picks up the change automatically.
 2. If status changed, update the **Status** row.
-3. If status moved to `resolved` or `closed`, add a `**Closed**` row with today's date.
+3. If status moved to `resolved` or `closed`, add a `**Closed**` row with today's date. If the move to `resolved` was triggered by a fix commit, also add a `**Commit**` row with the short hash (`git rev-parse --short HEAD`).
 4. Touch only what changed — don't reformat the rest of the file. Diff-friendly edits matter when the user reviews through the Mac app.
 
 After a bug is closed, you may add `## Root cause` and `## Fix` sections explaining what was wrong and what landed. These are useful for future readers tracing why a fix happened.
@@ -108,6 +108,62 @@ An issue must **never** be marked `resolved`, `closed`, or `wontfix` unless the 
 Always leave status as `open` (or `in-progress` if work has started) until the user confirms in plain language ("close this", "this is fixed", "mark resolved", "won't fix"). When in doubt, ask. The cost of asking is one turn; the cost of wrongly closing a real bug is that it disappears from the open list and gets forgotten.
 
 A subagent that fixes a bug may set status to `resolved` (work-is-done-but-not-confirmed). It must not set `closed` — that's the user's call. This separation is the whole reason the two states exist.
+
+## Resolving an issue (the standard workflow)
+
+The standard way of working through open issues: each issue is handled by a fresh subagent. The orchestrator picks the issue; the subagent does the work in isolation and returns when done. This keeps subagent context small and lets the orchestrator coordinate without losing focus.
+
+### Orchestrator: pick and dispatch
+
+When the user says "work through the open issues", "pick up the next bug", or "fix the next one":
+
+1. List `issues/*.md` (skip `Issues.md`). Find the lowest-numbered file whose status is `open`.
+2. Spawn a fresh subagent with the issue id and a brief task description: read `issues/NNNN.md`, fix the bug, follow the project's resolve workflow, return when done.
+3. When the subagent returns, repeat for the next open issue — unless the user asked for just one, or the user wants to review before continuing.
+
+If the user asks to work on a specific id ("fix 0046"), skip the picking step and dispatch to that id directly.
+
+### Subagent: claim → fix → build → commit → resolve
+
+When you've been dispatched to handle `NNNN`:
+
+1. **Read `issues/NNNN.md`** in full, including any screenshots or logs in `issues/NNNN/`. If something is unclear, read related code before guessing.
+2. **Set status to `in-progress`** — edit the Status row and save. The Mac app reflects this within ~1s, signaling that the issue is claimed and avoiding double-work.
+3. **Make the code changes** required to fix the bug.
+4. **Run the project's build / test command** and confirm it passes. Fix any failures caused by your changes. If the build was already broken when you started (failures unrelated to your work), do not fix unrelated breakage — note it on the issue and bail (see below).
+5. **Make a single git commit.** The commit message starts with `#NNNN` and a short, declarative title describing what this commit does — choose the verb that actually fits (`Fix`, `Add`, `Refactor`, `Update`, `Remove`, etc.). Not every issue is a bug fix; missing features, design refinements, and audits each get the verb that matches. After the title, leave a blank line, then add a paragraph or two of details. Example:
+
+   ```
+   #0046 Add navigation from avatar tap to profile
+
+   The avatar tap on PostCardView was not wired to any NavigationLink.
+   Threaded the author DID through the cell and connected onTapGesture
+   to push ProfileView. Verified on both feed and thread views.
+   ```
+
+   This is the canonical format for issue-linked commits. If the project's `CLAUDE.md` or recent `git log` defines a different convention, follow that instead.
+6. **Capture the commit hash** with `git rev-parse --short HEAD` immediately after the commit lands. You'll record it in the next step.
+7. **Set status to `resolved`** and update the metadata table in one edit:
+   - Change the Status row to `resolved`.
+   - Add a `**Closed**` row with today's date.
+   - Add a `**Commit**` row with the short hash from step 6.
+
+   Then add `## Root cause` and `## Fix` sections summarizing what was wrong and what landed — these are the future-reader's view of why the change happened. Mentioning the commit hash inline in `## Fix` is fine but optional; the metadata row is the canonical record.
+
+Status moves are `open` → `in-progress` → `resolved`. **Never set `closed`** — that's the user's transition after they verify the fix in the Mac app.
+
+The project's build command lives in the project's docs (`Issues.md`, `CLAUDE.md`, `README.md`), not this skill. Look there before assuming a default like `make`, `xcodebuild`, or `npm test`.
+
+### When you can't finish
+
+If the bug is unreproducible, out of scope, or the build won't pass after reasonable effort:
+
+1. **Revert the status to `open`** so the issue goes back into the queue. Don't leave it at `in-progress` — that signals active work and blocks the next iteration.
+2. **Add a `## Notes` section** describing what you tried and why you stopped. Be specific: which approaches were attempted, what the failure mode was. The next subagent (or the user) will start from your notes.
+3. **Don't commit partial changes.** Discard or stash your working copy so the next attempt starts clean.
+4. Return to the orchestrator with a one-line summary explaining the bail.
+
+Never use `wontfix` or `closed` as an escape hatch for a stuck issue — those are the user's decisions.
 
 ## Attaching screenshots and other artifacts
 
