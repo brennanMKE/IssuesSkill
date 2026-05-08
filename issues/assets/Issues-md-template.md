@@ -103,7 +103,7 @@ What actually happens.
 
 ## Attachments
 
-![caption](screenshot.png)
+![caption](NNNN/screenshot.png)
 
 ## Notes
 
@@ -210,13 +210,23 @@ Never use `wontfix` or `closed` to escape a stuck issue.
 
 ## Attachments
 
-Screenshots, crash logs, console output, sample data, etc. live in a sibling folder `issues/NNNN/`. Reference them with relative paths from the issue file:
+Screenshots, crash logs, console output, sample data, etc. live in a sibling folder `issues/NNNN/`. Reference them with paths *relative to the issue's `.md` file* — that means the folder prefix `NNNN/` is part of the link target. The bytes that ship are `1335/screenshot.png`, not `screenshot.png` and not `issues/1335/screenshot.png`.
+
+```
+issues/1335.md           ← the markdown that contains the link
+issues/1335/screenshot.png   ← the file being linked
+
+# inside 1335.md the link reads:
+![caption](1335/screenshot.png)
+```
+
+Concrete example:
 
 ```markdown
 ## Attachments
 
-![Reply button does nothing when tapped](screenshot.png)
-![Crash log](crash.log)
+![Reply button does nothing when tapped](1335/screenshot.png)
+![Crash log](1335/crash.log)
 ```
 
 ### macOS screenshot filename gotcha

@@ -43,7 +43,9 @@ This skill ships with templates and a parser reference. Use them rather than rec
 
 - **`assets/issue-template.md`** — the literal `NNNN.md` template. Read this with the `Read` tool when you need the exact structure for a new issue.
 - **`assets/Issues-md-template.md`** — the template for `issues/Issues.md`. This is the project-local guide an agent walking into the project will read; it should be self-contained. Copy it verbatim into a new project's `issues/` folder, then customize the project name, description, and module conventions.
+- **`references/issue-format.md`** — canonical spec for issue file structure: filename, title, metadata table, sections, and the **attachment relative-path rule** (link target must include the `NNNN/` folder prefix, e.g. `1335/screenshot.png`, not `screenshot.png`). Read this when you're unsure how a file should be laid out.
 - **`references/parsing.md`** — exact regex patterns the Mac app uses. Read this only if you're debugging why something isn't appearing or rendering correctly. Not needed for normal filing.
+- **`references/status-reports.md`** — how to generate snapshot reports of the issue queue (counts by status, chart, delta vs. a baseline). Read this when the user asks for a status report, snapshot, or "what's changed since…".
 
 ## First, orient yourself
 
@@ -243,16 +245,26 @@ Never use `wontfix` or `closed` as an escape hatch for a stuck issue — those a
 
 ## Attaching screenshots and other artifacts
 
-Screenshots, crash logs, console output, sample data — anything related to an issue — live in a sibling folder `issues/NNNN/`. Reference them from the issue's Attachments section with relative paths:
+Screenshots, crash logs, console output, sample data — anything related to an issue — live in a sibling folder `issues/NNNN/`. Reference them from the issue's Attachments section with paths *relative to the issue's `.md` file*. That means the folder prefix `NNNN/` is part of the link target — `1335/screenshot.png`, not `screenshot.png` and not `issues/1335/screenshot.png`.
+
+```
+issues/1335.md               ← the markdown containing the link
+issues/1335/screenshot.png   ← the file being linked
+
+# inside 1335.md:
+![caption](1335/screenshot.png)
+```
+
+Concrete Attachments section:
 
 ```markdown
 ## Attachments
 
-![Reply button does nothing when tapped](screenshot.png)
-![Crash log](crash.log)
+![Reply button does nothing when tapped](1335/screenshot.png)
+![Crash log](1335/crash.log)
 ```
 
-Filenames are descriptive (`before.png`, `after.png`, `console.png`, `crash.log`) — not just `screenshot.png` when there are multiple.
+Filenames are descriptive (`before.png`, `after.png`, `console.png`, `crash.log`) — not just `screenshot.png` when there are multiple. See `references/issue-format.md` for the full file-format spec.
 
 ### The macOS screenshot filename gotcha
 
