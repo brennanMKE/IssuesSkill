@@ -220,25 +220,38 @@ issues/1335/screenshot.png   ← the file being linked
 ![caption](1335/screenshot.png)
 ```
 
-Concrete example:
+Concrete example with both image and video attachments:
 
 ```markdown
 ## Attachments
 
 ![Reply button does nothing when tapped](1335/screenshot.png)
 ![Crash log](1335/crash.log)
+[![Sidebar resize jitter](1335/sidebar-resize-jitter.poster.png)](1335/sidebar-resize-jitter.mov)
 ```
 
-### macOS screenshot filename gotcha
+### Videos (`.mov`, `.mp4`, etc.)
 
-macOS screenshot filenames use a **narrow no-break space** (U+202F) before AM/PM, visually identical to a regular space. A literal `cp` of the quoted filename will fail with "No such file or directory". Use a glob to skip past it:
+Videos can't be embedded as `![…](…)` — markdown renderers treat that as an `<img>` and a `.mov` won't load. Instead, generate a poster frame with `qlmanage` and emit an image-inside-a-link (shown in the example above). Quick recipe — copy the video into `issues/NNNN/` first, then:
+
+```bash
+qlmanage -t -s 1280 -o issues/NNNN issues/NNNN/<basename>.<ext>
+mv issues/NNNN/<basename>.<ext>.png issues/NNNN/<basename>.poster.png
+```
+
+`qlmanage` ships with macOS — no install. It reliably produces posters for AVFoundation-supported formats: `.mov`, `.mp4`, `.m4v`, `.qt`. For `.avi` it usually works; for `.mkv` and `.webm` it generally fails on stock macOS unless a third-party Quick Look generator is installed. If the rename step doesn't produce the `.poster.png`, fall back to the plain `![alt](NNNN/file.mov)` form with a `<!-- poster generation failed -->` HTML comment in the Attachments section. Don't apply the link wrapper to plain images, and don't generate posters for animated GIFs.
+
+### macOS screenshot / screen recording filename gotcha
+
+macOS Screenshot and Screen Recording filenames both use a **narrow no-break space** (U+202F) before AM/PM, visually identical to a regular space. A literal `cp` of the quoted filename will fail with "No such file or directory". Use a glob to skip past it:
 
 ```bash
 mkdir -p issues/NNNN
 cp ~/Desktop/Screenshot\ YYYY-MM-DD\ at\ H.MM.SS*PM.png issues/NNNN/screenshot.png
+cp ~/Desktop/Screen\ Recording\ YYYY-MM-DD\ at\ H.MM.SS*PM.mov issues/NNNN/recording.mov
 ```
 
-The `*` matches the U+202F. Substitute the actual timestamp; if you don't know which screenshot the user means, list `~/Desktop/Screenshot*` by mtime and pick the most recent.
+The `*` matches the U+202F. Substitute the actual timestamp; if you don't know which file the user means, list `~/Desktop/Screenshot*` or `~/Desktop/Screen\ Recording*` by mtime and pick the most recent.
 
 ## Module conventions for this project
 

@@ -107,6 +107,7 @@ Other rules:
 - **Caption is the alt text** — describes what's in the file ("Reply button does nothing when tapped"), not its filename.
 - **Folder is created on demand.** If `issues/NNNN/` doesn't exist when the first attachment is added, `mkdir -p issues/NNNN` first.
 - **Don't link to files outside `issues/NNNN/`.** No `../`, no absolute paths, no Desktop links — the issue should be self-contained so the Mac app can resolve attachments without leaving the folder.
+- **Videos use a different shape.** `.mov`/`.mp4`/etc. can't load as `<img>`; they're emitted as `[![alt](NNNN/file.poster.png)](NNNN/file.mov)`. The relative-path rule still applies — both poster and video live in `issues/NNNN/`. See `video-attachments.md` for the full procedure.
 
 ### macOS screenshot copy
 

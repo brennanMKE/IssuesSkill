@@ -44,6 +44,7 @@ This skill ships with templates and a parser reference. Use them rather than rec
 - **`assets/issue-template.md`** — the literal `NNNN.md` template. Read this with the `Read` tool when you need the exact structure for a new issue.
 - **`assets/Issues-md-template.md`** — the template for `issues/Issues.md`. This is the project-local guide an agent walking into the project will read; it should be self-contained. Copy it verbatim into a new project's `issues/` folder, then customize the project name, description, and module conventions.
 - **`references/issue-format.md`** — canonical spec for issue file structure: filename, title, metadata table, sections, and the **attachment relative-path rule** (link target must include the `NNNN/` folder prefix, e.g. `1335/screenshot.png`, not `screenshot.png`). Read this when you're unsure how a file should be laid out.
+- **`references/video-attachments.md`** — how to attach `.mov`/`.mp4`/etc. videos: generating a poster frame with `qlmanage` and emitting the `[![alt](poster)](video)` image-inside-a-link form. Read this whenever a user hands over a screen recording or any video file.
 - **`references/parsing.md`** — exact regex patterns the Mac app uses. Read this only if you're debugging why something isn't appearing or rendering correctly. Not needed for normal filing.
 - **`references/status-reports.md`** — how to generate snapshot reports of the issue queue (counts by status, chart, delta vs. a baseline). Read this when the user asks for a status report, snapshot, or "what's changed since…".
 
@@ -265,6 +266,23 @@ Concrete Attachments section:
 ```
 
 Filenames are descriptive (`before.png`, `after.png`, `console.png`, `crash.log`) — not just `screenshot.png` when there are multiple. See `references/issue-format.md` for the full file-format spec.
+
+### Videos (`.mov`, `.mp4`, etc.)
+
+Videos can't be embedded as `![…](…)` — markdown renderers treat that as an `<img>` and a `.mov` won't load. Instead, generate a poster frame with `qlmanage` and emit an image-inside-a-link:
+
+```markdown
+[![Sidebar resize jitter](1335/sidebar-resize-jitter.poster.png)](1335/sidebar-resize-jitter.mov)
+```
+
+Quick recipe — copy the video into `issues/NNNN/`, then:
+
+```bash
+qlmanage -t -s 1280 -o issues/NNNN issues/NNNN/<basename>.<ext>
+mv issues/NNNN/<basename>.<ext>.png issues/NNNN/<basename>.poster.png
+```
+
+If `qlmanage` doesn't produce the poster (corrupt file, unsupported codec — e.g. `.mkv`/`.webm` without a third-party Quick Look generator), fall back to the plain `![alt](NNNN/file.mov)` form with a `<!-- poster generation failed -->` comment. Don't apply the link wrapper to plain images, and don't generate posters for animated GIFs. See `references/video-attachments.md` for the full procedure, supported extensions, and edge cases.
 
 ### The macOS screenshot filename gotcha
 
