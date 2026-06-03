@@ -12,6 +12,7 @@ The `# {Project Name}` heading above should match the `name` field in `issues/pr
 issues/
 ├── project.json       # canonical project name + repo URL
 ├── Issues.md          # this file
+├── model-pricing.json # daily-refreshed model price cache (see "Token usage and cost tracking")
 ├── 0001.md            # one file per issue
 ├── 0001/              # optional sibling folder for screenshots, crash logs, etc.
 │   └── screenshot.png
@@ -82,6 +83,8 @@ When tracked:
 | Resolve — code commit | code changes only | `#NNNN <verb> <title>` |
 | Resolve — resolution commit | markdown update (status + Closed + Commit + summary) | `#NNNN Resolve: <title>` |
 | Bail with notes | markdown only | `#NNNN Notes: <brief>` |
+| Work-log row appended | markdown only | `#NNNN Work log: <model>, <total tokens>, $<cost>` |
+| Daily pricing refresh | `model-pricing.json` only | `Update model pricing` |
 | User-confirmed close | markdown only | `#NNNN Close` |
 | Won't fix | markdown only | `#NNNN Won't fix` |
 
@@ -163,9 +166,11 @@ Each open issue is handled by a fresh subagent. The orchestrator picks the issue
 
 ### Orchestrator: pick and dispatch
 
-1. List `issues/*.md` (skip `Issues.md`). Pick the lowest-numbered file whose status is `open`.
-2. Spawn a fresh subagent with the issue id and instructions to follow the resolve workflow below.
-3. When the subagent returns, move on to the next open issue (or stop if only one was requested).
+1. **Refresh the pricing cache if stale.** If `issues/model-pricing.json` is missing or its `fetched` date isn't today, fetch current model prices and rewrite it (once per day, not per issue). See "Token usage and cost tracking" below.
+2. List `issues/*.md` (skip `Issues.md`). Pick the lowest-numbered file whose status is `open`.
+3. Spawn a fresh subagent with the issue id and instructions to follow the resolve workflow below.
+4. **When the subagent returns, record its usage** — locate the subagent's transcript, sum its token counts (deduped by `requestId`), note the model, compute cost from the pricing cache, and append a row to the issue's `## Work log` section with an updated running total. Bails get a row too — a failed attempt still spent tokens.
+5. Move on to the next open issue (or stop if only one was requested).
 
 If the user names a specific issue ("fix 0046"), dispatch to that id directly.
 
@@ -237,6 +242,56 @@ If the bug is unreproducible, out of scope, or the build won't pass after reason
 5. Return with a one-line summary of why work stalled.
 
 Never use `wontfix` or `closed` to escape a stuck issue.
+
+## Token usage and cost tracking
+
+Every subagent dispatch gets a usage record on the issue it worked: which model did the work, exactly how many tokens it consumed, and an estimated cost. The **orchestrator** records this after the subagent returns — a subagent can't measure its own totals.
+
+### Pricing cache (`issues/model-pricing.json`)
+
+Anthropic publishes prices on the docs site (no API endpoint). Fetch once per day, cache to:
+
+```json
+{
+  "fetched": "YYYY-MM-DD",
+  "source": "https://docs.claude.com/en/docs/about-claude/pricing",
+  "currency": "USD per MTok",
+  "models": {
+    "claude-opus-4-8": { "input": 5.00, "output": 25.00, "cache_write_5m": 6.25, "cache_read": 0.50 }
+  }
+}
+```
+
+If `fetched` is today, use as-is. If the fetch fails, use the stale cache and note the staleness next to the cost; with no cache at all, record tokens and model with `—` for cost. Never trust example numbers over a fresh fetch.
+
+### Getting exact token counts
+
+Claude Code writes each subagent's transcript to `~/.claude/projects/<project-slug>/<session-id>/subagents/agent-<id>.jsonl`, where `<project-slug>` is the working directory with `/`, `.`, and `_` replaced by `-`. Assistant lines carry `message.usage` (exact `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`) and `message.model`.
+
+**Dedupe by `requestId`** — one API response can span several JSONL lines repeating the same usage object; summing every line over-counts. Find the newest agent file mentioning the issue id, keep one usage entry per `requestId`, and sum.
+
+```
+cost = (input × input_rate + output × output_rate
+      + cache_read × cache_read_rate + cache_write × cache_write_5m_rate) / 1,000,000
+```
+
+If no transcript is available (different harness), record whatever total the harness reported, or `—`. Never fabricate counts.
+
+### The `## Work log` section
+
+One row per work session, conventionally the last section of the issue file (always after `## Description`):
+
+```markdown
+## Work log
+
+| Date | Model | Input | Output | Cache read | Cache write | Cost |
+|---|---|---|---|---|---|---|
+| 2026-06-03 | claude-opus-4-8 | 96 | 23,141 | 4,877,408 | 133,823 | $3.85 |
+
+**Total: $3.85**
+```
+
+Update the `**Total**` line whenever a row is appended. Bails get a row too. Don't reformat existing rows.
 
 ## Attachments
 

@@ -117,6 +117,7 @@ IssuesSkill/
     │   ├── Issues-md-template.md    # template for a project's issues/Issues.md
     │   └── project.json             # template for a project's issues/project.json
     └── references/                  # docs loaded on demand by Claude
+        ├── cost-tracking.md         # per-issue token usage, model, and cost recording
         ├── issue-format.md          # canonical issue file format spec
         ├── parsing.md               # Mac app regex details (debug-only)
         ├── project-config.md        # schema and workflow for project.json

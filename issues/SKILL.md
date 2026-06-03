@@ -29,6 +29,7 @@ This skill is also intended for **subagents**: when a subagent is doing work on 
 issues/
 ├── project.json       # canonical project name + repo URL (see references/project-config.md)
 ├── Issues.md          # local guide for managing issues
+├── model-pricing.json # daily-refreshed model price cache (see references/cost-tracking.md)
 ├── 0001.md            # one file per issue
 ├── 0001/              # optional sibling folder for screenshots, crash logs, etc.
 │   └── screenshot.png
@@ -50,6 +51,7 @@ This skill ships with templates and a parser reference. Use them rather than rec
 - **`references/project-config.md`** — schema and workflow for `issues/project.json` (the canonical source for the project's name and repo URL). Read this when creating or updating that file.
 - **`references/issue-format.md`** — canonical spec for issue file structure: filename, title, metadata table, sections, and the **attachment relative-path rule** (link target must include the `NNNN/` folder prefix, e.g. `1335/screenshot.png`, not `screenshot.png`). Read this when you're unsure how a file should be laid out.
 - **`references/video-attachments.md`** — how to attach `.mov`/`.mp4`/etc. videos: generating a poster frame with `qlmanage` and emitting the `[![alt](poster)](video)` image-inside-a-link form. Read this whenever a user hands over a screen recording or any video file.
+- **`references/cost-tracking.md`** — how to record token usage, model, and cost per work session: the `issues/model-pricing.json` daily price cache, locating the subagent's transcript to get exact token counts, the cost formula, and the `## Work log` section format. Read this whenever you dispatch a subagent to work an issue, or when the user asks what issue work has cost.
 - **`references/parsing.md`** — exact regex patterns the Mac app uses. Read this only if you're debugging why something isn't appearing or rendering correctly. Not needed for normal filing.
 - **`references/status-reports.md`** — how to generate snapshot reports of the issue queue (counts by status, chart, delta vs. a baseline). Read this when the user asks for a status report, snapshot, or "what's changed since…".
 
@@ -121,6 +123,8 @@ Three outcomes:
 | Resolving a bug — code commit | code changes only | `#NNNN <verb> <title>` (the substantive commit) |
 | Resolving a bug — resolution commit | markdown update (status `resolved` + Closed + Commit + summary) | `#NNNN Resolve: <title>` |
 | Subagent bail (notes added, status reverted to open) | markdown update | `#NNNN Notes: <brief>` |
+| Work-log row appended (post-subagent usage record) | markdown update | `#NNNN Work log: <model>, <total tokens>, $<cost>` |
+| Daily pricing refresh | `model-pricing.json` only | `Update model pricing` |
 | User-confirmed close | markdown update (status `closed`) | `#NNNN Close` |
 | Marking won't-fix (after user decision) | markdown update | `#NNNN Won't fix` |
 
@@ -156,6 +160,7 @@ The **Commit** metadata row records the hash of the code-fix commit. That hash i
 - **Description is the TL;DR.** Aim for 1–3 sentences (≤ ~12 non-blank lines). If you need more space to explain context, mechanism, or trade-offs, put that in a separate `## Long Description` section after Description. The Mac app's summary view shows only the first paragraph of Description; a wall-of-text Description is hostile to that surface.
 - **`## Resolution notes`** is the conventional section for a quote-block summary when an issue is resolved (e.g. `> 🟢 Resolved YYYY-MM-DD — …`). It goes *after* Description, never above the metadata table.
 - **`## Relation`** is the conventional section for bidirectional cross-links to parent / sibling / follow-on tickets. Cross-linking goes both directions: if A spawns B as a follow-on, A's Relation says `Follow-on: [#B](B.md)` and B's Relation says `Carved out of: [#A](A.md)`. Tickets that disappear from one side's Relation aren't actually linked.
+- **`## Work log`** is the conventional **last section** of the file: one table row per subagent work session (date, model, token counts, cost) plus a running `**Total: $X.XX**` line. Written by the orchestrator after each dispatch — see `references/cost-tracking.md`.
 
 ## Updating an existing issue
 
@@ -185,9 +190,11 @@ The standard way of working through open issues: each issue is handled by a fres
 
 When the user says "work through the open issues", "pick up the next bug", or "fix the next one":
 
-1. List `issues/*.md` (skip `Issues.md`). Find the lowest-numbered file whose status is `open`.
-2. Spawn a fresh subagent with the issue id and a brief task description. Tell the subagent explicitly to: read `issues/Issues.md` and `CLAUDE.md` first to absorb project conventions, then read `issues/NNNN.md` for the issue itself, then follow the project's resolve workflow and return when done. The fresh context is a feature — the subagent loads the project's rules cleanly each time, so the user can adjust them via `Issues.md` or `CLAUDE.md` and the next subagent will pick the changes up automatically.
-3. When the subagent returns, repeat for the next open issue — unless the user asked for just one, or the user wants to review before continuing.
+1. **Refresh the pricing cache if stale.** Read `issues/model-pricing.json`; if it's missing or its `fetched` date isn't today, fetch current model prices and rewrite it (once per day, not per issue). See `references/cost-tracking.md` for the fetch procedure and schema.
+2. List `issues/*.md` (skip `Issues.md`). Find the lowest-numbered file whose status is `open`.
+3. Spawn a fresh subagent with the issue id and a brief task description. Tell the subagent explicitly to: read `issues/Issues.md` and `CLAUDE.md` first to absorb project conventions, then read `issues/NNNN.md` for the issue itself, then follow the project's resolve workflow and return when done. The fresh context is a feature — the subagent loads the project's rules cleanly each time, so the user can adjust them via `Issues.md` or `CLAUDE.md` and the next subagent will pick the changes up automatically.
+4. **When the subagent returns, record its usage.** Locate the subagent's transcript, sum its exact token counts (deduped by `requestId`), note the model, compute the cost from the pricing cache, and append a row to the issue's `## Work log` section (creating it if absent) with an updated running total. This applies to bails too — a failed attempt still spent tokens. Full recipe in `references/cost-tracking.md`.
+5. Repeat for the next open issue — unless the user asked for just one, or the user wants to review before continuing.
 
 If the user asks to work on a specific id ("fix 0046"), skip the picking step and dispatch to that id directly.
 

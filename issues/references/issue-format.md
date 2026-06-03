@@ -72,6 +72,7 @@ When an issue is resolved via the standard workflow, additional sections get app
 12. `## Verification` — the exact command(s) run and what was observed. Mandatory; see SKILL.md "Resolving an issue".
 13. `## Files changed` — bulleted list, one bullet per file with a short note.
 14. `## Gotchas` — optional. Surprises, dead ends, non-obvious behavior.
+15. `## Work log` — one table row per subagent work session (date, model, exact token counts, estimated cost) plus a running `**Total: $X.XX**` line. Written by the orchestrator after each dispatch, including bails. Conventionally the last section of the file. Format and recipe in `cost-tracking.md`.
 
 The Mac app currently only parses the metadata table and `## Description`. Other sections render in the detail panel but aren't filtered/searched against — keep them readable for humans.
 
