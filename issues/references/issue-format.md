@@ -63,16 +63,18 @@ In order:
 6. `## Attachments` — image/file links. See below for path rules. Omit the section if there are no attachments.
 7. `## Notes` — any extra context, guesses at root cause, related code locations. Optional.
 8. `## Relation` *(optional)* — bidirectional links to parent / sibling / follow-on tickets.
+9. `## Plan` *(optional)* — the implementation plan written by the planning subagent (top model, currently Fable) at filing time: suspected root cause, files/functions involved, the approach, and how to verify. Guidance for the implementation subagent, not a contract. Added while the issue is still `open`. See `workflow.md`.
 
 When an issue is resolved via the standard workflow, additional sections get appended after the original ones:
 
-9. `## Resolution notes` *(optional but recommended)* — a one-line blockquote `> 🟢 Resolved YYYY-MM-DD — <summary>.` plus 1–2 sentences of follow-up. This is the "what's the punchline of the resolution" surface.
-10. `## Root cause` — what was actually wrong.
-11. `## Fix` — the approach taken.
-12. `## Verification` — the exact command(s) run and what was observed. Mandatory; see SKILL.md "Resolving an issue".
-13. `## Files changed` — bulleted list, one bullet per file with a short note.
-14. `## Gotchas` — optional. Surprises, dead ends, non-obvious behavior.
-15. `## Work log` — one table row per subagent work session (date, model, exact token counts, estimated cost) plus a running `**Total: $X.XX**` line. Written by the orchestrator after each dispatch, including bails. Conventionally the last section of the file. Format and recipe in `cost-tracking.md`.
+10. `## Resolution notes` *(optional but recommended)* — a one-line blockquote `> 🟢 Resolved YYYY-MM-DD — <summary>.` plus 1–2 sentences of follow-up, added by the Opus reviewer on approval. This is the "what's the punchline of the resolution" surface.
+11. `## Root cause` — what was actually wrong.
+12. `## Fix` — the approach taken.
+13. `## Verification` — the exact command(s) run and what was observed. Mandatory; see `workflow.md` "The standard workflow".
+14. `## Files changed` — bulleted list, one bullet per file with a short note.
+15. `## Gotchas` — optional. Surprises, dead ends, non-obvious behavior.
+16. `## Review notes` *(only on a review bounce)* — written by the Opus reviewer when it sends an issue back to `open`: what failed and what the next implementation pass must fix. See `workflow.md`.
+17. `## Work log` — one table row per subagent work session (date, optional phase, model, exact token counts, estimated cost) plus a running `**Total: $X.XX**` line. Written by the orchestrator after each dispatch — planning, implementation, review, plus bails and bounces. Conventionally the last section of the file. Format and recipe in `cost-tracking.md`.
 
 The Mac app currently only parses the metadata table and `## Description`. Other sections render in the detail panel but aren't filtered/searched against — keep them readable for humans.
 

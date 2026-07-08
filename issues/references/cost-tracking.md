@@ -2,6 +2,8 @@
 
 How to record, per issue, how many tokens each work session consumed, which model did the work, and what it cost. Usage is recorded by the **orchestrator** after a subagent returns — the subagent can't measure its own totals (its transcript is still growing while it works, and it doesn't know its own transcript filename).
 
+The standard workflow dispatches a subagent in **three phases** — planning (Fable) at issue creation, implementation (Sonnet), and review (Opus) — so a single issue normally accumulates at least three work-log rows, plus one for every bounce or retry. **The first row is the planning subagent, recorded at filing time**, not when the issue is later worked. Record usage after *each* subagent returns, whichever phase it was; the recipe below is identical for all three. See `workflow.md` for the phases.
+
 Two artifacts are involved:
 
 - **`issues/model-pricing.json`** — a cached copy of Anthropic's published per-MTok prices, refreshed at most once per day.
@@ -19,6 +21,12 @@ Anthropic does not expose pricing through an API endpoint — prices are publish
   "source": "https://docs.claude.com/en/docs/about-claude/pricing",
   "currency": "USD per MTok",
   "models": {
+    "claude-fable-5": {
+      "input": 5.00,
+      "output": 25.00,
+      "cache_write_5m": 6.25,
+      "cache_read": 0.50
+    },
     "claude-opus-4-8": {
       "input": 5.00,
       "output": 25.00,
@@ -39,14 +47,14 @@ All rates are **USD per million tokens**. The four rates map directly onto the f
 
 ### Daily refresh
 
-Before dispatching the first issue of a session:
+Before dispatching the first subagent of a session — **including the planning subagent fired when a new issue is filed**, which is often the very first dispatch:
 
 1. Read `issues/model-pricing.json`. If it exists and `fetched` equals today's date, use it as-is — done.
 2. Otherwise, fetch `https://docs.claude.com/en/docs/about-claude/pricing` with WebFetch and extract, for each current model: input, output, cache-write (5-minute), and cache-read rates per MTok. Rewrite the cache file with today's date.
 3. **If the fetch fails** (offline, page moved), keep using the stale cache and append ` (pricing as of <fetched date>)` to the cost cell of any work-log rows you write. A stale price is an estimate; say so. If there's no cache at all, record tokens and model but put `—` in the cost column.
 4. **If `issues/` is tracked by git**, commit a refreshed cache with message `Update model pricing`.
 
-Only include models that actually appear (or are likely to appear) in this project's work — typically the current Opus/Sonnet/Haiku generation. If a work-log entry uses a model missing from the cache, add that model on the next refresh.
+Only include models that actually appear (or are likely to appear) in this project's work. Under the standard three-phase workflow that's the **top model used for planning (currently Fable), plus the Sonnet and Opus generation** used for implementation and review. If a work-log entry uses a model missing from the cache, add that model on the next refresh.
 
 ## Getting exact token counts for a subagent
 
@@ -129,16 +137,20 @@ Each issue accumulates one table row per work session, conventionally as the **l
 ```markdown
 ## Work log
 
-| Date | Model | Input | Output | Cache read | Cache write | Cost |
-|---|---|---|---|---|---|---|
-| 2026-06-03 | claude-opus-4-8 | 96 | 23,141 | 4,877,408 | 133,823 | $3.85 |
+| Date | Phase | Model | Input | Output | Cache read | Cache write | Cost |
+|---|---|---|---|---|---|---|---|
+| 2026-06-03 | plan | claude-fable-5 | 84 | 6,102 | 512,400 | 41,200 | $0.58 |
+| 2026-06-04 | implement | claude-sonnet-4-6 | 120 | 18,530 | 2,904,110 | 98,400 | $1.12 |
+| 2026-06-04 | review | claude-opus-4-8 | 96 | 9,240 | 1,331,200 | 44,800 | $1.05 |
 
-**Total: $3.85**
+**Total: $2.75**
 ```
 
 Rules:
 
-- One row per subagent dispatch, including **bails** — a failed attempt still burned tokens and the queue's true cost should reflect it.
+- One row per subagent dispatch, including **bails** and review **bounces** — a failed or rejected attempt still burned tokens and the queue's true cost should reflect it.
+- The optional **Phase** column (`plan` / `implement` / `review`) makes the three-phase breakdown legible. It's recommended but not required — a project that only ever ran one phase per issue can omit it. If you add it, keep it on every row for that issue.
+- **The `plan` row is appended at filing time**, when the planning subagent returns — long before the issue is worked. The `implement` and `review` rows are appended later, as each of those subagents returns.
 - Token cells use thousands separators for readability.
 - The `**Total: $X.XX**` line is the running sum of the Cost column; update it whenever a row is appended.
 - If a session used more than one model (rare), list both in the Model cell separated by ` / ` and price each portion at its own rate if you have per-model splits; otherwise price at the more expensive model and note `~`.
@@ -153,7 +165,7 @@ When `issues/` is tracked:
 | Daily pricing refresh | `model-pricing.json` | `Update model pricing` |
 | Work-log row appended | `issues/NNNN.md` | `#NNNN Work log: <model>, <total tokens>, $<cost>` |
 
-The work-log commit lands *after* the subagent's resolution (or bail) commit, since the orchestrator can only measure usage once the subagent has returned. If the orchestrator is recording usage at the same time as another markdown edit it owns, folding them into one commit is fine — don't split hairs.
+The work-log commit lands *after* the phase's own commit (the plan commit, the resolution commit, a bounce, or a bail), since the orchestrator can only measure usage once the subagent has returned. In practice the row is usually folded into that same markdown edit — e.g. the planning subagent's row rides along with the `## Plan` in the filing commit, and the review subagent's row rides along with the resolution commit. Folding usage into a markdown edit the orchestrator already owns is fine — don't split hairs.
 
 ## Anti-patterns
 
